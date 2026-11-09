@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Cantiere - Iacutiletta</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased pb-24">
+    <header class="bg-gradient-to-r from-indigo-900 to-indigo-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+            <div>
+                <h1 class="font-bold text-lg leading-tight">IACUTILETTA</h1>
+                <p class="text-xs text-indigo-200">Gestione Spese Cantiere</p>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="exportToPDF()" class="bg-white/15 hover:bg-white/25 text-xs px-3 py-1.5 rounded-lg border border-white/20 font-medium">PDF</button>
+                <button onclick="exportBackup()" class="bg-white/15 hover:bg-white/25 text-xs px-3 py-1.5 rounded-lg border border-white/20 font-medium">Backup</button>
+            </div>
+        </div>
+        <div class="bg-indigo-950/40 px-4 py-3 border-t border-indigo-800/50">
+            <div class="max-w-md mx-auto grid grid-cols-2 gap-3 text-center">
+                <div class="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                    <p class="text-[10px] text-indigo-300 uppercase font-semibold">Sostenuti (Pagati)</p>
+                    <p id="totalPaid" class="text-lg font-extrabold text-emerald-400 mt-0.5">€ 0,00</p>
+                </div>
+                <div class="bg-white/5 p-2.5 rounded-xl border border-white/10">
+                    <p class="text-[10px] text-indigo-300 uppercase font-semibold">Da Sostenere</p>
+                    <p id="totalPending" class="text-lg font-extrabold text-amber-400 mt-0.5">€ 0,00</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto p-4 space-y-4" id="pdf-content">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+            <h2 id="formTitle" class="text-sm font-bold text-slate-800 uppercase mb-3 flex justify-between">
+                <span>Nuova Spesa / Preventivo</span>
+                <span id="cancelEdit" class="hidden text-indigo-600 text-xs cursor-pointer" onclick="resetForm()">Annulla</span>
+            </h2>
+            <form id="expenseForm" onsubmit="handleFormSubmit(event)" class="space-y-3">
+                <input type="hidden" id="editIndex" value="">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Descrizione / Fornitore</label>
+                    <input type="text" id="desc" required placeholder="Es. Acconto Idraulico..." class="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Importo (€)</label>
+                        <input type="number" step="0.01" id="amount" required placeholder="0.00" class="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Stato</label>
+                        <select id="status" class="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Sostenuto (Pagato)">Sostenuto (Pagato)</option>
+                            <option value="Da sostenere">Da sostenere</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Categoria</label>
+                        <select id="category" class="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="Materiali">Materiali</option>
+                            <option value="Manodopera">Manodopera</option>
+                            <option value="Professionisti">Professionisti</option>
+                            <option value="Impianti">Impianti</option>
+                            <option value="Struttura / Muratura">Struttura / Muratura</option>
+                            <option value="Altro">Altro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Data</label>
+                        <input type="date" id="date" required class="w-full text-sm bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+                <button type="submit" id="submitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-4 rounded-xl text-sm shadow-md transition">+ Aggiungi Spesa</button>
+            </form>
+        </div>
+
+        <div class="space-y-2">
+            <div class="flex bg-slate-200/70 p-1 rounded-xl text-xs font-semibold">
+                <button onclick="setFilterTab('all')" id="tab-all" class="flex-1 py-2 rounded-lg bg-white text-indigo-900 shadow-sm transition">Tutti</button>
+                <button onclick="setFilterTab('Sostenuto (Pagato)')" id="tab-paid" class="flex-1 py-2 rounded-lg text-slate-600 transition">Sostenuti</button>
+                <button onclick="setFilterTab('Da sostenere')" id="tab-pending" class="flex-1 py-2 rounded-lg text-slate-600 transition">Da sostenere</button>
+            </div>
+        </div>
+
+        <div class="space-y-3" id="expenseList"></div>
+    </main>
+
+    <script>
+        let expenses = JSON.parse(localStorage.getItem('iacutiletta_expenses')) || [];
+        let currentTab = 'all';
+        document.getElementById('date').valueAsDate = new Date();
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const editIndex = document.getElementById('editIndex').value;
+            const expenseData = {
+                desc: document.getElementById('desc').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                status: document.getElementById('status').value,
+                category: document.getElementById('category').value,
+                date: document.getElementById('date').value
+            };
+            if (editIndex === "") {
+                expenses.push(expenseData);
+            } else {
+                expenses[editIndex] = expenseData;
+            }
+            saveAndRefresh();
+            resetForm();
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem('iacutiletta_expenses', JSON.stringify(expenses));
+            renderExpenses();
+            updateTotals();
+        }
+
+        function updateTotals() {
+            let totalPaid = 0, totalPending = 0;
+            expenses.forEach(item => {
+                if (item.status === 'Sostenuto (Pagato)') totalPaid += item.amount;
+                else totalPending += item.amount;
+            });
+            document.getElementById('totalPaid').innerText = '€ ' + totalPaid.toLocaleString('it-IT', {minimumFractionDigits: 2});
+            document.getElementById('totalPending').innerText = '€ ' + totalPending.toLocaleString('it-IT', {minimumFractionDigits: 2});
+        }
+
+        function renderExpenses() {
+            const listEl = document.getElementById('expenseList');
+            listEl.innerHTML = '';
+            const filtered = expenses.filter(item => currentTab === 'all' || item.status === currentTab);
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="text-center py-10 text-slate-400 text-xs">Nessuna spesa inserita.</div>';
+                return;
+            }
+            filtered.forEach((item) => {
+                const originalIndex = expenses.indexOf(item);
+                const isPaid = item.status === 'Sostenuto (Pagato)';
+                const badgeClass = isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+                const card = document.createElement('div');
+                card.className = "bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-2";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">${item.category}</span>
+                            <h3 class="font-bold text-slate-800 text-sm mt-1">${item.desc}</h3>
+                        </div>
+                        <span class="text-xs font-extrabold text-slate-900">€ ${item.amount.toLocaleString('it-IT', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-100 text-xs">
+                        <div>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeClass}">${item.status}</span>
+                            <p class="text-[10px] text-slate-400 mt-0.5">${item.date.split('-').reverse().join('/')}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="editExpense(${originalIndex})" class="text-indigo-600 font-medium px-2 py-1">Modifica</button>
+                            <button onclick="deleteExpense(${originalIndex})" class="text-rose-600 font-medium px-2 py-1">Elimina</button>
+                        </div>
+                    </div>
+                `;
+                listEl.appendChild(card);
+            });
+        }
+
+        function setFilterTab(tab) {
+            currentTab = tab;
+            ['all', 'paid', 'pending'].forEach(t => {
+                document.getElementById(`tab-${t}`).className = "flex-1 py-2 rounded-lg text-slate-600 transition";
+            });
+            const activeId = tab === 'all' ? 'tab-all' : (tab === 'Sostenuto (Pagato)' ? 'tab-paid' : 'tab-pending');
+            document.getElementById(activeId).className = "flex-1 py-2 rounded-lg bg-white text-indigo-900 shadow-sm font-semibold transition";
+            renderExpenses();
+        }
+
+    function deleteExpense(index) {
+        if (confirm("Vuoi eliminare questa voce?")) {
+            expenses.splice(index, 1);
+            saveAndRefresh();
+        }
+    }
+
+    function editExpense(index) {
+        const item = expenses[index];
+        document.getElementById('editIndex').value = index;
+        document.getElementById('desc').value = item.desc;
+        document.getElementById('amount').value = item.amount;
+        document.getElementById('status').value = item.status;
+        document.getElementById('category').value = item.category;
+        document.getElementById('date').value = item.date;
+        document.getElementById('formTitle').innerHTML = '<span>Modifica Spesa</span>';
+        document.getElementById('cancelEdit').classList.remove('hidden');
+        document.getElementById('submitBtn').innerText = 'Aggiorna Spesa';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+        document.getElementById('expenseForm').reset();
+        document.getElementById('editIndex').value = '';
+        document.getElementById('date').valueAsDate = new Date();
+        document.getElementById('formTitle').innerHTML = '<span>Nuova Spesa / Preventivo</span>';
+        document.getElementById('cancelEdit').classList.add('hidden');
+        document.getElementById('submitBtn').innerText = '+ Aggiungi Spesa';
+    }
+
+    function exportToPDF() {
+        html2pdf().from(document.getElementById('pdf-content')).save('Cantiere-Iacutiletta.pdf');
+    }
+
+    function exportBackup() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(expenses));
+        const dl = document.createElement('a');
+        dl.setAttribute("href", dataStr);
+        dl.setAttribute("download", "backup_iacutiletta.json");
+        dl.click();
+        dl.remove();
+    }
+
+    updateTotals();
+    renderExpenses();
+</script>
+</body>
+</html>
